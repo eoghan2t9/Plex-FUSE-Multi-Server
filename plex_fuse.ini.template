@@ -1,34 +1,34 @@
 [plex]
-The full base URL of your Plex Media Server.
+#The full base URL of your Plex Media Server.
 baseurl =
-Your Plex authentication token (X-Plex-Token).
+#Your Plex authentication token (X-Plex-Token).
 token =
-The local directory where this specific Plex library should be mounted.
+#The local directory where this specific Plex library should be mounted.
 mountpoint =
 
 [cache]
-Can be 'sqlite' or 'redis'
+#Can be 'sqlite' or 'redis'
 type = redis
 ttl_hours = 24
-For sqlite, you can use {instance} which will be replaced by the service name (e.g., server1)
-The installer does not use this, but it's available for manual configuration.
-sqlite_path = /opt/plexfuse/plex_fuse_{instance}_cache.db
+#For sqlite, you can use {instance} which will be replaced by the service name (e.g., server1)
+#The installer does not use this, but it's available for manual configuration.
+sqlite_path = plex_fuse_{instance}_cache.db
 
 [redis]
-Settings for DragonflyDB or Redis
+#Settings for DragonflyDB or Redis
 host = 127.0.0.1
 port = 6379
 
 [dashboard]
-Set to 'true' to enable the web status dashboard for this instance.
+#Set to 'true' to enable the web status dashboard for this instance.
 enabled = true
-IMPORTANT: Each instance MUST have a unique port number.
+#IMPORTANT: Each instance MUST have a unique port number.
 port = 9988
 
 [background]
-This MUST be true for the systemd service to work correctly.
+#This MUST be true for the systemd service to work correctly.
 foreground = true
-How often (in minutes) to automatically check Plex for new content.
+#How often (in minutes) to automatically check Plex for new content.
 refresh_interval_minutes = 60
 log_file =
 
@@ -37,7 +37,7 @@ verbose = false
 allow_other = false
 
 [performance]
-Number of parallel worker threads for processing media items.
+#Number of parallel worker threads for processing media items.
 consumer_threads = 50
-Timeout in seconds for individual network operations during scanning.
+#Timeout in seconds for individual network operations during scanning.
 network_timeout = 60
