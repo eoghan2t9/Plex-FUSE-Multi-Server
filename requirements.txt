@@ -1,0 +1,5 @@
+fusepy
+plexapi
+requests
+redis
+systemd-python
