@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Plex FUSE Mount Script (V6.1 - The Complete Multi-Instance Edition)
+Plex FUSE Mount Script (V6.2 - The Complete Multi-Instance Edition)
 
-This definitive version includes a web status dashboard, on-demand rescans,
-a robust producer-consumer engine, and self-healing connections, all
-designed to be run as an instanced systemd service.
+This definitive version fixes a syntax error in the build_cache_from_plex
+method and includes a web status dashboard, on-demand rescans, a robust
+producer-consumer engine, and self-healing connections.
 """
 
 import os
@@ -86,7 +86,7 @@ class PlexFUSE(LoggingMixIn, Operations):
         session.headers.update({
             'Connection': 'close', 'X-Plex-Token': self.cfg['token'],
             'X-Plex-Client-Identifier': client_id, 'X-Plex-Product': 'Plex FUSE (V6)',
-            'X-Plex-Version': '6.1.0', 'X-Plex-Device': platform.system(),
+            'X-Plex-Version': '6.2.0', 'X-Plex-Device': platform.system(),
             'X-Plex-Platform': 'Python',
         })
         log.info("Robust (non-keep-alive) requests session configured.")
@@ -201,7 +201,13 @@ class PlexFUSE(LoggingMixIn, Operations):
         log.info("Building cache using direct-request producer-consumer model...")
         with self.rwlock: self.status = "Scanning"
         plex_conn = self._connect_to_plex()
-        if not plex_conn: with self.rwlock: self.status = "Error: Connection Failed"; return {}, {}
+        # --- THIS IS THE CRITICAL FIX ---
+        # The invalid one-liner has been replaced with a proper multi-line block.
+        if not plex_conn:
+            with self.rwlock:
+                self.status = "Error: Connection Failed"
+            return {}, {}
+            
         final_cache, final_dir_map = {}, {'/': []}
         task_queue = Queue(maxsize=self.cfg['consumer_threads'] * 4); lock = Lock()
         libraries_data = [{'key': lib.key, 'title': lib.title} for lib in plex_conn.library.sections() if lib.type in ['movie', 'show']]
@@ -316,7 +322,7 @@ class PlexFUSE(LoggingMixIn, Operations):
         return ['.', '..'] + children
 
 def main():
-    log.info("--- Starting Plex FUSE V6.1 (The Complete Multi-Instance Edition) ---")
+    log.info("--- Starting Plex FUSE V6.2 (Syntax Fix) ---")
     parser = ArgumentParser(description='Mount a Plex server as a background service.')
     parser.add_argument('--config', required=True, help='Path to the instance-specific configuration file.')
     parser.add_argument('--instance', required=True, help='The name of the instance being run (e.g., server1).')
