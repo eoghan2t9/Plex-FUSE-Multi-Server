@@ -19,6 +19,15 @@ sqlite_path = plex_fuse_{instance}_cache.db
 host = 127.0.0.1
 port = 6379
 
+​[on_disk_cache]
+​#Set to 'true' to enable the persistent on-disk file cache.
+​enabled = true
+#​The path on your SSD where file chunks will be cached. {instance} will be replaced.
+​path = /var/cache/plexfuse/{instance}
+#​The size (in MB) of the chunk to cache from the beginning of each file.
+#​10MB is a great value for satisfying media analysis tools like ffprobe.
+​size_mb = 10
+
 [dashboard]
 #Set to 'true' to enable the web status dashboard for this instance.
 enabled = true
