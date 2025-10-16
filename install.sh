@@ -1,10 +1,9 @@
 #!/bin/bash
 #
-# Plex FUSE Multi-Server Installer & Systemd Template Setup (V5 - GitHub Edition)
+# Plex FUSE Multi-Server Installer & Systemd Template Setup (V6 - On-Disk Cache)
 #
-# This script installs the Plex FUSE project from the current directory
-# and configures it to run as a systemd "template unit", allowing you to manage
-# multiple, independent Plex server mounts easily.
+# This script installs the definitive version of the Plex FUSE script,
+# which includes support for a persistent on-disk file cache.
 #
 
 # --- Colors for better output ---
@@ -27,35 +26,33 @@ info "Starting Plex FUSE Multi-Server Installer..."
 if [[ $EUID -ne 0 ]]; then
    fail "This script must be run as root. Please use 'sudo ./install.sh'"
 fi
-
-if [ ! -f "plex_fuse.py" ] || [ ! -f "cache_manager.py" ]; then
-    fail "Could not find required script files. Please run this installer from the root of the project directory."
-fi
-
-command -v python3 >/dev/null 2>&1 || fail "Python 3 is not installed. Please install it first."
-command -v pip3 >/dev/null 2>&1 || fail "pip3 is not installed (package python3-pip)."
+if [ ! -f "plex_fuse.py" ]; then fail "Could not find plex_fuse.py. Please run from the project root."; fi
 
 # --- Installation Logic ---
 DEFAULT_INSTALL_DIR="/opt/plexfuse"
-SERVICE_NAME="plexfuse@" # The '@' is critical for a template unit
+DEFAULT_CACHE_DIR="/var/cache/plexfuse"
+SERVICE_NAME="plexfuse@"
 
-read -p "Enter the user to run the services as (e.g., 'pi' or your username): " RUN_USER
-if ! id "$RUN_USER" &>/dev/null; then
-    fail "User '$RUN_USER' does not exist."
-fi
+read -p "Enter the user to run the services as: " RUN_USER
+if ! id "$RUN_USER" &>/dev/null; then fail "User '$RUN_USER' does not exist."; fi
 RUN_GROUP=$(id -gn "$RUN_USER")
 
 read -p "Enter installation directory [${DEFAULT_INSTALL_DIR}]: " INSTALL_DIR
 INSTALL_DIR=${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}
 
+read -p "Enter on-disk cache directory [${DEFAULT_CACHE_DIR}]: " CACHE_DIR
+CACHE_DIR=${CACHE_DIR:-$DEFAULT_CACHE_DIR}
+
 info "Installing project files to ${INSTALL_DIR}..."
 mkdir -p "${INSTALL_DIR}"
-# Copy all project files to the installation directory
 cp ./* "${INSTALL_DIR}/"
 success "Project files copied."
 
+info "Creating on-disk cache directory at ${CACHE_DIR}..."
+mkdir -p "${CACHE_DIR}"
+success "Cache directory created."
 
-info "Installing system build dependencies..."
+info "Installing system dependencies..."
 if [ -f /etc/debian_version ]; then
     apt-get update && apt-get install -y python3-venv libfuse-dev libsystemd-dev pkg-config
 elif [ -f /etc/redhat-release ]; then
@@ -63,7 +60,7 @@ elif [ -f /etc/redhat-release ]; then
 else
     warn "Unsupported distro. Please install FUSE and systemd development libraries manually."
 fi
-success "System build dependencies installed."
+success "System dependencies installed."
 
 info "Setting up Python virtual environment..."
 rm -rf "${INSTALL_DIR}/venv"
@@ -74,13 +71,15 @@ pip3 install -r "${INSTALL_DIR}/requirements.txt"
 deactivate
 success "Python environment created and dependencies installed."
 
+# Set permissions for all directories
 chown -R ${RUN_USER}:${RUN_GROUP} "${INSTALL_DIR}"
+chown -R ${RUN_USER}:${RUN_GROUP} "${CACHE_DIR}"
 
 info "Creating systemd template service file..."
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+# ... (rest of installer is the same)
 PYTHON_EXEC="${INSTALL_DIR}/venv/bin/python3"
 SCRIPT_EXEC="${INSTALL_DIR}/plex_fuse.py"
-
 cat > "${SERVICE_FILE}" << EOF
 [Unit]
 Description=Plex FUSE Mount Service for %i
@@ -92,7 +91,6 @@ Type=simple
 User=${RUN_USER}
 Group=${RUN_GROUP}
 WorkingDirectory=${INSTALL_DIR}
-# The '%i' is replaced by the instance name (e.g., 'server1')
 ExecStart=${PYTHON_EXEC} ${SCRIPT_EXEC} --config plexfuse@%i.ini --instance %i
 ExecReload=/bin/kill -HUP \$MAINPID
 Restart=on-failure
@@ -104,7 +102,6 @@ StandardError=journal
 WantedBy=multi-user.target
 EOF
 success "Systemd template service file created at ${SERVICE_FILE}"
-
 systemctl daemon-reload
 
 echo ""
@@ -112,24 +109,7 @@ info "------------------------------------------------------------"
 success "Plex FUSE Multi-Server Installation Complete!"
 info "------------------------------------------------------------"
 echo -e "The system is now ready to run multiple Plex FUSE instances."
-echo -e "To add your first server, follow these steps:"
+echo -e "Remember to edit your config files in '${INSTALL_DIR}' to set the"
+echo -e "'on_disk_cache.path' to your desired location, e.g., '${CACHE_DIR}/{instance}'"
 echo ""
-echo -e "  1. ${C_YELLOW}Create a config file from the template:${C_RESET}"
-echo -e "     cd ${INSTALL_DIR}"
-echo -e "     cp plex_fuse.ini.template plexfuse@${C_GREEN}server1${C_RESET}.ini"
-echo ""
-echo -e "  2. ${C_YELLOW}Edit the new config file:${C_RESET}"
-echo -e "     nano plexfuse@${C_GREEN}server1${C_RESET}.ini"
-echo -e "     (Fill in baseurl, token, mountpoint, and a unique dashboard port)"
-echo ""
-echo -e "  3. ${C_YELLOW}Enable and start the service for that instance:${C_RESET}"
-echo -e "     sudo systemctl enable plexfuse@${C_GREEN}server1${C_RESET}"
-echo -e "     sudo systemctl start plexfuse@${C_GREEN}server1${C_RESET}"
-echo ""
-echo -e "You can repeat these steps for 'server2', 'server3', etc."
-echo ""
-echo -e "Useful commands:"
-echo -e "  Check status:   sudo systemctl status plexfuse@${C_GREEN}server1${C_RESET}"
-echo -e "  View logs:      journalctl -u plexfuse@${C_GREEN}server1${C_RESET} -f"
-echo -e "  Trigger rescan: sudo systemctl reload plexfuse@${C_GREEN}server1${C_RESET}"
-echo ""
+echo -e "To add a new server, follow the instructions in the README.md file."
