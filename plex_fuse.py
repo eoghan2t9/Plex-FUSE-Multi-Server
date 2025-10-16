@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Plex FUSE Mount Script (V6.2 - The Complete Multi-Instance Edition)
+Plex FUSE Mount Script (V6.3 - The Complete Multi-Instance Edition)
 
-This definitive version fixes a syntax error in the build_cache_from_plex
-method and includes a web status dashboard, on-demand rescans, a robust
-producer-consumer engine, and self-healing connections.
+This definitive version includes a web status dashboard, on-demand rescans,
+a robust producer-consumer engine, and self-healing connections. It now
+also automatically creates the mount point directory if it does not exist.
 """
 
 import os
@@ -86,7 +86,7 @@ class PlexFUSE(LoggingMixIn, Operations):
         session.headers.update({
             'Connection': 'close', 'X-Plex-Token': self.cfg['token'],
             'X-Plex-Client-Identifier': client_id, 'X-Plex-Product': 'Plex FUSE (V6)',
-            'X-Plex-Version': '6.2.0', 'X-Plex-Device': platform.system(),
+            'X-Plex-Version': '6.3.0', 'X-Plex-Device': platform.system(),
             'X-Plex-Platform': 'Python',
         })
         log.info("Robust (non-keep-alive) requests session configured.")
@@ -201,13 +201,9 @@ class PlexFUSE(LoggingMixIn, Operations):
         log.info("Building cache using direct-request producer-consumer model...")
         with self.rwlock: self.status = "Scanning"
         plex_conn = self._connect_to_plex()
-        # --- THIS IS THE CRITICAL FIX ---
-        # The invalid one-liner has been replaced with a proper multi-line block.
         if not plex_conn:
-            with self.rwlock:
-                self.status = "Error: Connection Failed"
+            with self.rwlock: self.status = "Error: Connection Failed"
             return {}, {}
-            
         final_cache, final_dir_map = {}, {'/': []}
         task_queue = Queue(maxsize=self.cfg['consumer_threads'] * 4); lock = Lock()
         libraries_data = [{'key': lib.key, 'title': lib.title} for lib in plex_conn.library.sections() if lib.type in ['movie', 'show']]
@@ -322,7 +318,7 @@ class PlexFUSE(LoggingMixIn, Operations):
         return ['.', '..'] + children
 
 def main():
-    log.info("--- Starting Plex FUSE V6.2 (Syntax Fix) ---")
+    log.info("--- Starting Plex FUSE V6.3 (Auto-Create Mount Point) ---")
     parser = ArgumentParser(description='Mount a Plex server as a background service.')
     parser.add_argument('--config', required=True, help='Path to the instance-specific configuration file.')
     parser.add_argument('--instance', required=True, help='The name of the instance being run (e.g., server1).')
@@ -347,6 +343,21 @@ def main():
         'network_timeout': config.getint('performance', 'network_timeout', fallback=60),
     }
     setup_logging(logging.DEBUG if cfg['verbose'] else logging.INFO)
+
+    if not all(cfg[k] for k in ['baseurl', 'token', 'mountpoint']):
+        log.error('Missing required config: \'baseurl\', \'token\', \'mountpoint\''); sys.exit(1)
+    
+    # --- NEW: Automatically create the mount point if it doesn't exist ---
+    mountpoint = cfg['mountpoint']
+    if not os.path.isdir(mountpoint):
+        log.warning(f"Mount point '{mountpoint}' does not exist. Attempting to create it.")
+        try:
+            os.makedirs(mountpoint, exist_ok=True)
+            log.info(f"Successfully created mount point directory: {mountpoint}")
+        except OSError as e:
+            log.critical(f"Failed to create mount point directory '{mountpoint}': {e}")
+            log.critical("Please ensure the parent directory exists and the user running the service has write permissions.")
+            sys.exit(1)
 
     cache_manager = None
     if cfg['cache_type'] == 'sqlite':
